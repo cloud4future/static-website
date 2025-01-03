@@ -1,0 +1,43 @@
+name: Deploy to GCS
+
+on:
+  push:
+    branches:
+      - main  # Change this to the branch you want to trigger the deployment
+
+jobs:
+  deploy:
+    name: Deploy Static Website to GCS
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Checkout the repository code
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    # Step 2: Set up Google Cloud CLI
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        version: 'latest'
+        service_account_key: ${{ secrets.GCP_SA_KEY }}  # Add this secret in GitHub
+        project_id: ${{ secrets.GCP_PROJECT_ID }}      # Add this secret in GitHub
+
+    # Step 3: Sync files to GCS Bucket
+    - name: Deploy files to GCS
+      run: |
+        # Set the bucket name
+        BUCKET_NAME=${{ secrets.GCP_BUCKET_NAME }}
+        
+        # Upload all files in the repository to the GCS bucket
+        gsutil -m rsync -R ./ gs://${BUCKET_NAME}
+
+        # Enable public read permissions for all files in the bucket
+        gsutil iam ch allUsers:objectViewer gs://${BUCKET_NAME}
+
+        # Configure the bucket for static website hosting
+        gsutil web set -m index.html -e 404.html gs://${BUCKET_NAME}
+
+    # Step 4: Verify the deployment
+    - name: Verify deployment
+      run: echo "Website deployed to: http://${{ secrets.GCP_BUCKET_NAME }}.storage.googleapis.com/"
