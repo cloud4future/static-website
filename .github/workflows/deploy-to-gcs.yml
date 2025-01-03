@@ -40,4 +40,5 @@ jobs:
 
     # Step 4: Verify the deployment
     - name: Verify deployment
-      run: echo "Website deployed to: http://${{ secrets.GCP_BUCKET_NAME }}.storage.googleapis.com/"
+      run: |
+        echo "Website deployed to: http://${{ secrets.GCP_BUCKET_NAME }}.storage.googleapis.com/"
