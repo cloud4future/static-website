@@ -3,42 +3,43 @@ name: Deploy to GCS
 on:
   push:
     branches:
-      - main  # Change this to the branch you want to trigger the deployment
+      - main  # Run this workflow only on the main branch
 
 jobs:
-  deploy:
-    name: Deploy Static Website to GCS
+  deploy-to-gcs:
     runs-on: ubuntu-latest
-
     steps:
-    # Step 1: Checkout the repository code
-    - name: Checkout Code
-      uses: actions/checkout@v3
+      # Step 1: Checkout the code
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    # Step 2: Set up Google Cloud CLI
-    - name: Set up Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
-      with:
-        version: 'latest'
-        service_account_key: ${{ secrets.GCP_SA_KEY }}  # Add this secret in GitHub
-        project_id: ${{ secrets.GCP_PROJECT_ID }}      # Add this secret in GitHub
+      # Step 2: Set up Google Cloud SDK
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: 'latest'
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
 
-    # Step 3: Sync files to GCS Bucket
-    - name: Deploy files to GCS
-      run: |
-        # Set the bucket name
-        BUCKET_NAME=${{ secrets.GCP_BUCKET_NAME }}
-        
-        # Upload all files in the repository to the GCS bucket
-        gsutil -m rsync -R ./ gs://${BUCKET_NAME}
+      # Step 3: Authenticate and sync files to GCS
+      - name: Deploy files to GCS
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" > key.json
+          gcloud auth activate-service-account --key-file=key.json
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
 
-        # Enable public read permissions for all files in the bucket
-        gsutil iam ch allUsers:objectViewer gs://${BUCKET_NAME}
+          # Ensure bucket URL is correct
+          BUCKET_NAME="${{ secrets.GCP_BUCKET_NAME }}"
+          gsutil -m rsync -R ./ gs://$BUCKET_NAME
 
-        # Configure the bucket for static website hosting
-        gsutil web set -m index.html -e 404.html gs://${BUCKET_NAME}
+      # Step 4: Configure public access for GCS bucket
+      - name: Enable public read access
+        run: |
+          BUCKET_NAME="${{ secrets.GCP_BUCKET_NAME }}"
+          gsutil iam ch allUsers:objectViewer gs://$BUCKET_NAME
 
-    # Step 4: Verify the deployment
-    - name: Verify deployment
-      run: |
-        echo "Website deployed to: http://${{ secrets.GCP_BUCKET_NAME }}.storage.googleapis.com/"
+      # Step 5: Configure the bucket for static website hosting
+      - name: Set up website hosting
+        run: |
+          BUCKET_NAME="${{ secrets.GCP_BUCKET_NAME }}"
+          gsutil web set -m index.html -e 404.html gs://$BUCKET_NAME
